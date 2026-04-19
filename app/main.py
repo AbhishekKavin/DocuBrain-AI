@@ -18,9 +18,14 @@ app.add_middleware(
 )
 rag_engine_instance = None
 
+class Message(BaseModel):
+    role: str
+    content: str
+
 # Define Request/Response schema
 class QueryRequest(BaseModel):
     question: str
+    chat_history: list[Message] = []
 
 class QueryResponse(BaseModel):
     answer: str
@@ -56,7 +61,10 @@ async def ask_question(request: QueryRequest):
         raise HTTPException(status_code=503, detail="RAG Engine not initialized yet. Please try again later.")
     
     return StreamingResponse(
-        rag_engine_instance.stream_query(request.question),
+        rag_engine_instance.stream_query(
+            question = request.question,
+            chat_history=request.chat_history
+            ),
         media_type="text/event-stream"
     )
 

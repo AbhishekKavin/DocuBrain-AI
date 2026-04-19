@@ -7,3 +7,5 @@ langchain-text-splitters
 pypdf
 faiss-cpu
 python-dotenv
+streamlit
+requests

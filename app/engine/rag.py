@@ -37,7 +37,7 @@ class RAGEngine:
             logger.error(f"Error loading FAISS index from disk: {e}")
             raise
 
-    async def stream_query(self, question: str):
+    async def stream_query(self, question: str, chat_history: list = []):
         """
         Retrieve relevant documents and generate an answer from the context.
     
@@ -45,6 +45,18 @@ class RAGEngine:
             tuple: (answer, sources) where sources are unique source filenames.
         """
         try:
+            if chat_history:
+                history_str = "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])
+                contextualize_prompt = f"""
+                Given the following chat history and a follow-up question, 
+                rephrase the follow-up question to be a standalone question.
+        
+                History: {history_str}
+                Follow-up: {question}
+                Standalone Question:"""
+                standalone_question = await self.llm.ainvoke(contextualize_prompt)
+                question = standalone_question.content
+                logger.info(f"Rephrased question for retrieval: {question}")
             # Extract Name  (Identity check)
             entity_extraction_prompt = f"Identify the person being asked about in: '{question}'. Return ONLY the full name. If it's a general question about multiple people or no specific person, return 'None'."
             target_response = await self.llm.ainvoke(entity_extraction_prompt)
@@ -53,19 +65,20 @@ class RAGEngine:
             # Retrieve relevant documents to get sources
             docs = self.retriever.invoke(question)
 
-            if target_name != "None":
-                logger.info(f"Targetting specific entity: {target_name} ")
-                final_docs = [
-                    doc for doc in docs
-                    if target_name.lower() in doc.page_content.lower()
-                    or target_name.lower() in doc.metadata.get("source","").lower()
-                ]
+            final_docs = []
+            for doc in docs:
+                content = doc.page_content.lower()
+                source = doc.metadata.get("source", "").lower()
 
-                if not final_docs:
-                    final_docs = docs
-            else:
-                logger.info("No specific entity identified, using all retrieved documents.")
-                final_docs = docs
+                if target_name != "None":
+                    if target_name.lower() in content or target_name.lower() in source:
+                        final_docs.append(doc)
+                else:
+                    final_docs.append(doc)
+
+            if not final_docs:
+                final_docs = docs[:3]
+
             # Extract unique sources from the retrieved documents
             sources = list(set([doc.metadata.get("source","Unknown") for doc in final_docs]))
             # Build context string for the LLM
@@ -74,10 +87,10 @@ class RAGEngine:
             yield f"SOURCES: {json.dumps(sources)}\n\n"
 
             # Defining the prompt template
-            template = """You are a Career Intelligence Bot. 
-            If a specific person is mentioned, answer only about them. 
-            If no person is mentioned, provide a collective summary or answer based on all context provided.
-
+            template = """You are a Career Expert. 
+            STRICT RULE: Use ONLY information that explicitly belongs to {target}. 
+            If a document describes a different person, IGNORE IT COMPLETELY.
+            
             Context:
             {context}
 
@@ -87,7 +100,7 @@ class RAGEngine:
             prompt = ChatPromptTemplate.from_template(template)
             chain = prompt | self.llm | StrOutputParser()
 
-            async for chunk in chain.astream({"context": context, "question": question}):
+            async for chunk in chain.astream({"context": context, "question": question, "target": target_name}):
                 yield chunk
         
         except Exception as e:
