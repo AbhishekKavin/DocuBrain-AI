@@ -12,10 +12,13 @@ DocuBrain is an advanced Retrieval-Augmented Generation (RAG) system designed fo
 
 - **Asynchronous Streaming API**: Engineered with FastAPI to provide real-time, word-by-word generation via Server-Sent Events (SSE) for low-latency user experiences.
 
+- **Conversational Memory**: Features a query-condensation logic that rephrases follow-up questions into standalone queries for accurate multi-turn dialogue.
+
 ## 🛠️ Technical Stack
 
 | Component | Technology |
 |-----------|------------|
+| Frontend UI | Streamlit |
 | Orchestration | LangChain |
 | LLM & Embeddings | OpenAI (GPT-4o-mini & Text-Embedding-3-Small) |
 | Vector Database | FAISS (Facebook AI Similarity Search) |
@@ -51,6 +54,12 @@ OPENAI_API_KEY=your_api_key_here
 ```bash
 uvicorn app.main:app --reload
 ```
+The API will automatically scan the `/data` folder and initialize the FAISS index.
+
+```bash
+streamlit run app/ui.py
+```
+Access the interactive chat interface at `http://localhost:8501`.
 
 ## 📊 Operational Impact
 
