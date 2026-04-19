@@ -52,6 +52,6 @@ OPENAI_API_KEY=your_api_key_here
 uvicorn app.main:app --reload
 ```
 
-## Operational Impact
+## 📊 Operational Impact
 
 This architecture mimics production-scale systems I've deployed, which have historically reduced diagnostic and manual retrieval times by up to 70%.
